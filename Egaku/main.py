@@ -422,7 +422,7 @@ class EgakuWindow(QMainWindow):
         QMessageBox.critical(self, "Egaku render failed", message)
 
     def reset(self) -> None:
-        self.strength.setValue(58)
+        self.strength.setValue(28)
         self.detail.setValue(70)
 
     def export(self) -> None:
