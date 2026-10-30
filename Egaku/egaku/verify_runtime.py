@@ -48,6 +48,11 @@ def main() -> int:
         print("Run setup_gpu.bat, then fully restart Egaku.")
         return 1
 
+    # CI can validate the full Python stack without claiming an NVIDIA GPU exists.
+    if "--packages-only" in sys.argv:
+        print("Package preflight: PASS (CUDA hardware test intentionally skipped)")
+        return 0
+
     if torch.version.cuda is None or not torch.cuda.is_available():
         print("ERROR: CUDA is unavailable to PyTorch.")
         print("Check the NVIDIA driver, then run setup_gpu.bat again.")
