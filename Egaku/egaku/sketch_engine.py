@@ -99,10 +99,25 @@ class PencilRenderer:
         self.pipe: StableDiffusionImg2ImgPipeline | None = None
 
     def load(self) -> None:
+        # Diffusers detects PEFT when it is imported. Egaku must be restarted
+        # after installing PEFT so the backend is detected at process startup.
+        try:
+            import peft  # noqa: F401
+            from diffusers.utils.import_utils import is_peft_available
+            if not is_peft_available():
+                raise ImportError("Diffusers cannot detect the installed PEFT package.")
+        except Exception as exc:
+            raise RuntimeError(
+                "Egaku needs the PEFT package to load its pencil adapter. "
+                "Close Egaku, run setup_gpu.bat, then launch run.bat again. "
+                "You can also install it with: "
+                ".venv\\Scripts\\python.exe -m pip install -U peft"
+            ) from exc
+
         if not torch.cuda.is_available():
             raise RuntimeError(
-                "CUDA was not detected. Egaku Local AI Pencil requires an NVIDIA GPU "
-                "and a CUDA-enabled PyTorch installation."
+                "CUDA was not detected. Egaku requires an NVIDIA GPU and a "
+                "CUDA-enabled PyTorch installation."
             )
         self.progress("Loading the Stable Diffusion 1.5 model…")
         if self.model_path.is_dir():
@@ -116,8 +131,22 @@ class PencilRenderer:
                 requires_safety_checker=False, local_files_only=True,
             )
         adapter = ensure_adapter(self.progress)
-        pipe.load_lora_weights(str(adapter), adapter_name="pencil")
-        pipe.set_adapters(["pencil"], adapter_weights=[0.85])
+        try:
+            pipe.load_lora_weights(str(adapter), adapter_name="pencil")
+            pipe.set_adapters(["pencil"], adapter_weights=[0.85])
+        except Exception as exc:
+            message = str(exc)
+            if "PEFT backend is required" in message or "peft" in message.lower():
+                raise RuntimeError(
+                    "The PEFT backend was not detected by Diffusers. "
+                    "Close all Egaku windows, install/update PEFT with setup_gpu.bat, "
+                    "and restart Egaku. A full app restart is required after installing PEFT."
+                ) from exc
+            raise RuntimeError(
+                "The pencil adapter could not be loaded into this checkpoint. "
+                "Use a standard Stable Diffusion 1.5 model, not SDXL, Flux, or another architecture. "
+                "Also verify that the selected checkpoint is a complete SD 1.5 model."
+            ) from exc
         pipe.enable_vae_slicing()
         pipe.enable_vae_tiling()
         pipe.enable_sequential_cpu_offload()
