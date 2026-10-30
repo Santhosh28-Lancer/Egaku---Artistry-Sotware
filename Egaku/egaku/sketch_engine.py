@@ -24,6 +24,14 @@ ADAPTER_NAME = "Pencil_Sketch_Style.safetensors"
 DEFAULT_MAX_SIDE = 512
 OOM_RETRY_SIZES = (512, 448, 384)
 
+# Low img2img denoising strength is essential for preserving the input person's
+# identity, pose, clothing, eyewear, and framing. Higher values let SD redraw them.
+MIN_DENOISE_STRENGTH = 0.18
+MAX_DENOISE_STRENGTH = 0.42
+DEFAULT_DENOISE_STRENGTH = 0.28
+MIN_ADAPTER_WEIGHT = 0.50
+MAX_ADAPTER_WEIGHT = 0.78
+
 
 def adapter_path() -> Path:
     root = Path(os.environ.get("LOCALAPPDATA", Path.home())) / "Egaku" / "models"
@@ -111,7 +119,6 @@ def _unique_retry_sides(width: int, height: int) -> tuple[int, ...]:
     return tuple(sides)
 
 
-
 def _configure_low_vram(pipe, progress: Callable[[str], None] | None = None) -> None:
     """Apply VAE memory options and required sequential CPU offload."""
     report = progress or (lambda _message: None)
@@ -119,7 +126,6 @@ def _configure_low_vram(pipe, progress: Callable[[str], None] | None = None) -> 
     if vae is None:
         raise RuntimeError("The selected Stable Diffusion model has no VAE component.")
 
-    # VAE slicing/tiling are component methods, not pipeline methods.
     try:
         method = getattr(vae, "enable_slicing", None)
         if callable(method):
@@ -134,7 +140,6 @@ def _configure_low_vram(pipe, progress: Callable[[str], None] | None = None) -> 
     except Exception as exc:
         report(f"VAE tiling unavailable; continuing with CPU offload ({exc})")
 
-    # Attention slicing is optional and varies by attention backend.
     method = getattr(pipe, "enable_attention_slicing", None)
     if callable(method):
         try:
@@ -142,7 +147,6 @@ def _configure_low_vram(pipe, progress: Callable[[str], None] | None = None) -> 
         except Exception as exc:
             report(f"Attention slicing unavailable; continuing ({exc})")
 
-    # Sequential CPU offload is the required low-VRAM execution mode.
     method = getattr(pipe, "enable_sequential_cpu_offload", None)
     if not callable(method):
         raise RuntimeError(
@@ -157,7 +161,6 @@ def _configure_low_vram(pipe, progress: Callable[[str], None] | None = None) -> 
             "by running setup_gpu.bat. Do not move the pipeline to CUDA manually. "
             f"Original offload message: {exc}"
         ) from exc
-
 
 
 def _check_runtime() -> None:
@@ -181,7 +184,6 @@ def _check_runtime() -> None:
             "the NVIDIA driver is working."
         )
 
-    # Run a tiny real GPU operation to catch driver/runtime issues before model loading.
     try:
         sample = torch.ones((16, 16), device="cuda", dtype=torch.float16)
         _ = sample @ sample
@@ -226,6 +228,17 @@ def _validate_model_path(model_path: Path) -> None:
             "The selected checkpoint is unusually small. It may be a LoRA or an incomplete "
             "download, not a full Stable Diffusion 1.5 model."
         )
+
+
+def clamp_denoise_strength(value: float) -> float:
+    """Keep img2img from freely redrawing the source subject."""
+    return float(np.clip(value, MIN_DENOISE_STRENGTH, MAX_DENOISE_STRENGTH))
+
+
+def pencil_adapter_weight(detail: int) -> float:
+    """Keep the style adapter restrained so it is less likely to replace identity."""
+    bounded = int(np.clip(detail, 0, 100))
+    return float(np.interp(bounded, [0, 100], [MIN_ADAPTER_WEIGHT, MAX_ADAPTER_WEIGHT]))
 
 
 class PencilRenderer:
@@ -273,9 +286,10 @@ class PencilRenderer:
         try:
             adapter = ensure_adapter(self.progress)
             pipe.load_lora_weights(str(adapter), adapter_name="egaku_pencil")
-            pipe.set_adapters(["egaku_pencil"], adapter_weights=[0.85])
+            pipe.set_adapters(["egaku_pencil"], adapter_weights=[0.68])
         except Exception as exc:
             del pipe
+            gc.collect()
             torch.cuda.empty_cache()
             text = str(exc).lower()
             if "peft" in text:
@@ -310,21 +324,27 @@ class PencilRenderer:
     ) -> Image.Image:
         assert self.pipe is not None
         prompt = (
-            "highly detailed realistic graphite pencil portrait, professional hand-drawn "
-            "pencil illustration on clean white drawing paper, precise facial anatomy, "
-            "individual curved pencil strokes in the hair, finely observed hair strands, "
-            "crisp eyeglass frames, subtle graphite gradients on skin, controlled cross "
-            "hatching in shadow regions, delicate directional strokes following fabric folds, "
-            "deep graphite accents, clean highlights, refined traditional pencil artwork"
+            "Create a traditional graphite pencil drawing of the exact same person shown "
+            "in the input photograph. Preserve the person's identity and recognizable face: "
+            "same facial proportions, face shape, eyes, nose, lips, jawline, skin features, "
+            "hairline, hairstyle, apparent age and gender. Preserve the original head angle, "
+            "expression, body pose, clothing, accessories, eyewear, camera framing and "
+            "composition. This is a faithful pencil-medium conversion of the input photo, "
+            "not a new portrait and not a redesign. Use fine directional graphite strokes, "
+            "careful cross-hatching only in shadow areas, natural tonal gradients, crisp "
+            "contours and clean white paper while keeping every person and object in place."
         )
         negative = (
-            "blurry, watercolor, oil painting, color, dirty gray background, random noise, "
-            "mottled skin, smudged facial features, cartoon, anime, plastic skin, "
-            "oversmoothed face, distorted glasses, extra features, text, watermark"
+            "different person, changed identity, altered face, changed facial proportions, "
+            "different gender, changed age, changed hairstyle, changed hairline, changed pose, "
+            "changed clothes, missing accessories, missing eyewear, replaced background, "
+            "new composition, new person, extra person, face morphing, generic model face, "
+            "beautification, blurry, watercolor, oil painting, cartoon, anime, plastic skin, "
+            "mottled skin, random noise, distorted features, text, watermark"
         )
         steps = int(np.interp(detail, [0, 100], [20, 30]))
-        guidance = float(np.interp(detail, [0, 100], [6.0, 7.5]))
-        adapter_weight = float(np.interp(detail, [0, 100], [0.65, 1.0]))
+        guidance = float(np.interp(detail, [0, 100], [5.5, 6.8]))
+        adapter_weight = pencil_adapter_weight(detail)
         self.pipe.set_adapters(["egaku_pencil"], adapter_weights=[adapter_weight])
 
         generator = None
@@ -335,7 +355,7 @@ class PencilRenderer:
             prompt=prompt,
             negative_prompt=negative,
             image=source,
-            strength=float(np.clip(strength, 0.35, 0.78)),
+            strength=clamp_denoise_strength(strength),
             num_inference_steps=steps,
             guidance_scale=guidance,
             generator=generator,
@@ -347,7 +367,7 @@ class PencilRenderer:
         self,
         image_path: str | Path,
         output_path: str | Path,
-        strength: float = 0.58,
+        strength: float = DEFAULT_DENOISE_STRENGTH,
         detail: int = 70,
         seed: int | None = None,
     ) -> Image.Image:
@@ -364,7 +384,7 @@ class PencilRenderer:
         for attempt, max_side in enumerate(retry_sides, start=1):
             source, original_size = _load_image(image_path, max_side=max_side)
             self.progress(
-                f"Rendering pencil illustration at {source.width} × {source.height} "
+                f"Rendering identity-preserving pencil conversion at {source.width} × {source.height} "
                 f"(memory profile {attempt}/{len(retry_sides)})…"
             )
             try:
