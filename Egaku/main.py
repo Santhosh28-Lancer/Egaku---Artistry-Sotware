@@ -37,7 +37,7 @@ class RenderWorker(QThread):
 class EgakuWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Egaku — Local AI Pencil Studio")
+        self.setWindowTitle("Egaku — Image to Art Studio")
         self.resize(1440, 900)
         self.settings = QSettings("Egaku", "LocalAIPencil")
         self.source_path: str | None = None
@@ -58,7 +58,7 @@ class EgakuWindow(QMainWindow):
         lv = QVBoxLayout(left)
         title = QLabel("EGAKU")
         title.setObjectName("brand")
-        subtitle = QLabel("LOCAL AI PENCIL STUDIO")
+        subtitle = QLabel("IMAGE TO ART STUDIO")
         subtitle.setObjectName("muted")
         self.import_btn = QPushButton("＋  Import image")
         self.original_btn = QPushButton("◉  Original image")
