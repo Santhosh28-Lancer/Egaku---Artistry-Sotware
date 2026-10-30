@@ -1,0 +1,39 @@
+name: Validate Egaku Python source
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  syntax:
+    name: Python syntax and project layout
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Compile all Python files
+        run: python -m compileall -q Egaku
+      - name: Verify required project files
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          required = [
+              "Egaku/main.py",
+              "Egaku/egaku/sketch_engine.py",
+              "Egaku/requirements.txt",
+              "Egaku/setup_gpu.bat",
+              "Egaku/run.bat",
+              "Egaku/tests/test_engine_helpers.py",
+          ]
+          missing = [path for path in required if not Path(path).is_file()]
+          if missing:
+              raise SystemExit("Missing project files: " + ", ".join(missing))
+          print("All required Egaku project files are present.")
+          PY
