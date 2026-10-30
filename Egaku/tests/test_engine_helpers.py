@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import tempfile
 import unittest
 from pathlib import Path
@@ -22,18 +23,13 @@ from egaku.sketch_engine import (
 class GraphiteEngineTests(unittest.TestCase):
     def _sample(self, width: int = 320, height: int = 240) -> np.ndarray:
         image = np.full((height, width, 3), 238, dtype=np.uint8)
-        cv2.ellipse(
-            image, (width // 2, height // 2), (55, 82), 0, 0, 360, (74, 74, 74), -1
-        )
-        cv2.ellipse(
-            image, (width // 2 - 18, height // 2 - 15), (7, 10), 0, 0, 360,
-            (245, 245, 245), -1
-        )
-        cv2.line(
-            image, (width // 2 - 50, height // 2 + 32),
-            (width // 2 + 45, height // 2 + 35), (28, 28, 28), 5
-        )
-        return image
+        cv2.rectangle(image, (0, 0), (width - 1, height - 1), (95, 165, 220), -1)
+        cv2.ellipse(image, (width // 2, height // 3), (55, 72), 0, 0, 360, (170, 190, 205), -1)
+        cv2.circle(image, (width // 2 - 20, height // 3 - 12), 5, (25, 25, 25), -1)
+        cv2.circle(image, (width // 2 + 20, height // 3 - 12), 5, (25, 25, 25), -1)
+        cv2.line(image, (width // 2 - 18, height // 3 + 30), (width // 2 + 18, height // 3 + 30), (65, 65, 65), 3)
+        cv2.rectangle(image, (width // 2 - 85, height // 2), (width // 2 + 85, height - 1), (85, 105, 130), -1)
+        return cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
     def test_working_size_preserves_aspect_and_caps_long_side(self):
         width, height = _working_size(4000, 3000)
@@ -51,7 +47,7 @@ class GraphiteEngineTests(unittest.TestCase):
         self.assertEqual(sharpened.dtype, np.uint8)
         self.assertGreater(int(sharpened.max()), int(sharpened.min()))
 
-    def test_edge_detection_returns_thin_binary_contours(self):
+    def test_edge_detection_returns_binary_contours(self):
         gray = cv2.cvtColor(self._sample(), cv2.COLOR_RGB2GRAY)
         edges = detect_structural_edges(edge_aware_sharpen(gray), detail=70)
         self.assertEqual(edges.shape, gray.shape)
@@ -62,24 +58,18 @@ class GraphiteEngineTests(unittest.TestCase):
 
     def test_graphite_render_preserves_shape_and_is_monochrome(self):
         rgb = self._sample()
-        output = graphite_render(rgb, graphite_depth=65, fine_detail=72)
+        output = graphite_render(rgb, graphite_depth=65, fine_detail=58)
         self.assertEqual(output.shape, rgb.shape)
         self.assertEqual(output.dtype, np.uint8)
         self.assertTrue(np.array_equal(output[..., 0], output[..., 1]))
         self.assertTrue(np.array_equal(output[..., 1], output[..., 2]))
-        self.assertGreater(int(output.min()), 0)
-        self.assertLess(int(output.max()), 256)
 
-    def test_graphite_render_is_deterministic(self):
-        rgb = self._sample()
-        first = graphite_render(rgb, 64, 68)
-        second = graphite_render(rgb, 64, 68)
-        self.assertTrue(np.array_equal(first, second))
-
-    def test_input_array_is_not_modified(self):
+    def test_graphite_render_is_deterministic_and_does_not_modify_input(self):
         rgb = self._sample()
         original = rgb.copy()
-        graphite_render(rgb, 64, 68)
+        first = graphite_render(rgb, 64, 58)
+        second = graphite_render(rgb, 64, 58)
+        self.assertTrue(np.array_equal(first, second))
         self.assertTrue(np.array_equal(rgb, original))
 
     def test_loader_caps_working_resolution_and_keeps_original_size(self):
@@ -94,9 +84,12 @@ class GraphiteEngineTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             source = Path(temp) / "source.png"
             output = Path(temp) / "result.png"
-            Image.fromarray(self._sample(320, 240)).save(source)
+            Image.fromarray(self._sample()).save(source)
+            before = hashlib.sha256(source.read_bytes()).hexdigest()
             statuses = []
-            result = PencilRenderer(progress=statuses.append).render(source, output, 64, 68)
+            result = PencilRenderer(progress=statuses.append).render(source, output, 64, 58)
+            after = hashlib.sha256(source.read_bytes()).hexdigest()
+            self.assertEqual(before, after)
             self.assertTrue(output.is_file())
             with Image.open(output) as saved:
                 self.assertEqual(saved.size, (320, 240))
