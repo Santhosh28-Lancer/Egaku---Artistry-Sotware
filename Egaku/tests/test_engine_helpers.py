@@ -12,6 +12,7 @@ from egaku.sketch_engine import (
     OOM_RETRY_SIZES,
     _load_image,
     _model_dimensions,
+    _unique_retry_sides,
     _validate_model_path,
 )
 
@@ -37,6 +38,10 @@ class EgakuEngineTests(unittest.TestCase):
     def test_oom_retry_sizes_descend(self):
         self.assertEqual(tuple(sorted(OOM_RETRY_SIZES, reverse=True)), OOM_RETRY_SIZES)
         self.assertEqual(OOM_RETRY_SIZES[-1], 384)
+
+    def test_retry_skips_duplicate_profiles_for_small_images(self):
+        self.assertEqual(_unique_retry_sides(320, 240), (512,))
+        self.assertEqual(_unique_retry_sides(960, 1280), (512, 448, 384))
 
     def test_load_image_limits_size_and_preserves_original_dimensions(self):
         with tempfile.TemporaryDirectory() as temp:
