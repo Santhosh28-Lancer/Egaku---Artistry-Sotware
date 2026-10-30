@@ -61,7 +61,12 @@ echo [5/6] Checking all Python source files...
 if errorlevel 1 goto failed
 
 echo.
-echo [6/6] Running PyTorch, CUDA, PEFT and GPU compute tests...
+echo [6/7] Running Egaku unit tests...
+.venv\Scripts\python.exe -m unittest discover -s tests -v
+if errorlevel 1 goto failed
+
+echo.
+echo [7/7] Running PyTorch, CUDA, PEFT and GPU compute tests...
 .venv\Scripts\python.exe -c "import torch,diffusers,transformers,accelerate,peft,safetensors,huggingface_hub; from diffusers.utils.import_utils import is_peft_available; assert torch.cuda.is_available(), 'CUDA is not available to PyTorch'; assert torch.version.cuda is not None, 'CPU-only PyTorch detected'; assert is_peft_available(), 'Diffusers cannot detect PEFT'; x=torch.randn((256,256),device='cuda'); y=x@x; torch.cuda.synchronize(); p=torch.cuda.get_device_properties(0); print('PyTorch:',torch.__version__); print('CUDA runtime:',torch.version.cuda); print('Diffusers:',diffusers.__version__); print('Transformers:',transformers.__version__); print('PEFT:',peft.__version__); print('Accelerate:',accelerate.__version__); print('GPU:',p.name); print('VRAM: %.2f GB' % (p.total_memory/1024**3)); print('CUDA compute test: PASS')"
 if errorlevel 1 (
   echo.
