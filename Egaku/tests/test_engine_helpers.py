@@ -70,6 +70,14 @@ class EgakuEngineTests(unittest.TestCase):
                 _validate_model_path(folder)
 
 
+
+    def test_diffusers_detects_peft_backend(self):
+        import peft
+        from diffusers.utils.import_utils import is_peft_available
+
+        self.assertTrue(is_peft_available())
+        self.assertTrue(peft.__version__)
+
     def test_low_vram_uses_vae_component_methods_and_pipeline_offload(self):
         class FakeVAE:
             def __init__(self):
