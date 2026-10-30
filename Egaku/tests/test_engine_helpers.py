@@ -8,7 +8,12 @@ from pathlib import Path
 from PIL import Image
 
 from egaku.sketch_engine import (
+    DEFAULT_DENOISE_STRENGTH,
     DEFAULT_MAX_SIDE,
+    MAX_DENOISE_STRENGTH,
+    MIN_DENOISE_STRENGTH,
+    clamp_denoise_strength,
+    pencil_adapter_weight,
     OOM_RETRY_SIZES,
     _configure_low_vram,
     _load_image,
@@ -123,6 +128,26 @@ class EgakuEngineTests(unittest.TestCase):
         )
         self.assertIn("python.exe egaku\\verify_runtime.py", setup)
         self.assertNotIn("VRAM: %.2f", setup)
+
+
+    def test_denoise_strength_is_clamped_to_identity_safe_range(self):
+        self.assertEqual(DEFAULT_DENOISE_STRENGTH, 0.28)
+        self.assertEqual(clamp_denoise_strength(0.78), MAX_DENOISE_STRENGTH)
+        self.assertEqual(clamp_denoise_strength(0.05), MIN_DENOISE_STRENGTH)
+        self.assertEqual(clamp_denoise_strength(0.28), 0.28)
+
+    def test_pencil_adapter_weight_is_limited(self):
+        self.assertAlmostEqual(pencil_adapter_weight(0), 0.50)
+        self.assertAlmostEqual(pencil_adapter_weight(100), 0.78)
+        self.assertLessEqual(pencil_adapter_weight(100), 0.78)
+
+    def test_ui_does_not_allow_high_redraw_strength(self):
+        main = (Path(__file__).resolve().parents[1] / "main.py").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("self.strength.setRange(18, 42)", main)
+        self.assertIn("self.strength.setValue(28)", main)
+        self.assertNotIn("self.strength.setRange(35, 78)", main)
 
     def test_runtime_diagnostic_script_is_present(self):
         script = Path(__file__).resolve().parents[1] / "egaku" / "verify_runtime.py"
