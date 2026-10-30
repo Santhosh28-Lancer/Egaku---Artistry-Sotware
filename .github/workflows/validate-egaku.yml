@@ -20,6 +20,8 @@ jobs:
           python-version: "3.12"
       - name: Compile all Python files
         run: python -m compileall -q Egaku
+      - name: Resolve pinned application dependencies
+        run: python -m pip install --dry-run -r Egaku/requirements.txt
       - name: Verify required project files
         run: |
           python - <<'PY'
