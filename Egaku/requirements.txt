@@ -1,0 +1,7 @@
+PySide6
+Pillow
+numpy
+diffusers
+transformers
+accelerate
+safetensors
