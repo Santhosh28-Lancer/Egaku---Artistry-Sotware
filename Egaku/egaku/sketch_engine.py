@@ -111,6 +111,55 @@ def _unique_retry_sides(width: int, height: int) -> tuple[int, ...]:
     return tuple(sides)
 
 
+
+def _configure_low_vram(pipe, progress: Callable[[str], None] | None = None) -> None:
+    """Apply VAE memory options and required sequential CPU offload."""
+    report = progress or (lambda _message: None)
+    vae = getattr(pipe, "vae", None)
+    if vae is None:
+        raise RuntimeError("The selected Stable Diffusion model has no VAE component.")
+
+    # VAE slicing/tiling are component methods, not pipeline methods.
+    try:
+        method = getattr(vae, "enable_slicing", None)
+        if callable(method):
+            method()
+    except Exception as exc:
+        report(f"VAE slicing unavailable; continuing with CPU offload ({exc})")
+
+    try:
+        method = getattr(vae, "enable_tiling", None)
+        if callable(method):
+            method()
+    except Exception as exc:
+        report(f"VAE tiling unavailable; continuing with CPU offload ({exc})")
+
+    # Attention slicing is optional and varies by attention backend.
+    method = getattr(pipe, "enable_attention_slicing", None)
+    if callable(method):
+        try:
+            method("max")
+        except Exception as exc:
+            report(f"Attention slicing unavailable; continuing ({exc})")
+
+    # Sequential CPU offload is the required low-VRAM execution mode.
+    method = getattr(pipe, "enable_sequential_cpu_offload", None)
+    if not callable(method):
+        raise RuntimeError(
+            "This Diffusers build does not provide sequential CPU offload. "
+            "Run setup_gpu.bat to install the pinned Egaku dependencies."
+        )
+    try:
+        method()
+    except Exception as exc:
+        raise RuntimeError(
+            "Could not activate sequential CPU offload. Confirm Accelerate is installed "
+            "by running setup_gpu.bat. Do not move the pipeline to CUDA manually. "
+            f"Original offload message: {exc}"
+        ) from exc
+
+
+
 def _check_runtime() -> None:
     """Fail early with actionable messages before loading several GB of weights."""
     try:
@@ -241,56 +290,13 @@ class PencilRenderer:
                 f"Original adapter message: {exc}"
             ) from exc
 
-        # Diffusers >=0.40 moved VAE slicing/tiling from the pipeline to the VAE.
-        # Use the supported component methods, and never let an optional memory
-        # optimisation crash an otherwise valid pipeline.
-        vae = getattr(pipe, "vae", None)
-        if vae is None:
-            del pipe
-            torch.cuda.empty_cache()
-            raise RuntimeError("The selected Stable Diffusion model has no VAE component.")
-
-        # These are optional memory features. If a particular VAE implementation
-        # does not support one, continue with sequential CPU offload and OOM retries.
         try:
-            if callable(getattr(vae, "enable_slicing", None)):
-                vae.enable_slicing()
-        except Exception as exc:
-            self.progress(f"VAE slicing unavailable; continuing with CPU offload ({exc})")
-        try:
-            if callable(getattr(vae, "enable_tiling", None)):
-                vae.enable_tiling()
-        except Exception as exc:
-            self.progress(f"VAE tiling unavailable; continuing with CPU offload ({exc})")
-
-        # Attention slicing is optional and varies by attention backend.
-        attention_slicing = getattr(pipe, "enable_attention_slicing", None)
-        if callable(attention_slicing):
-            try:
-                attention_slicing("max")
-            except Exception as exc:
-                self.progress(f"Attention slicing unavailable; continuing ({exc})")
-
-        # Do not call pipe.to('cuda') before sequential offload. That defeats much
-        # of the memory saving and can exhaust a 4 GB laptop GPU.
-        sequential_offload = getattr(pipe, "enable_sequential_cpu_offload", None)
-        if not callable(sequential_offload):
+            _configure_low_vram(pipe, self.progress)
+        except Exception:
             del pipe
+            gc.collect()
             torch.cuda.empty_cache()
-            raise RuntimeError(
-                "This Diffusers build does not provide sequential CPU offload. "
-                "Run setup_gpu.bat to install the pinned Egaku dependencies."
-            )
-        try:
-            sequential_offload()
-        except Exception as exc:
-            del pipe
-            torch.cuda.empty_cache()
-            raise RuntimeError(
-                "Could not activate sequential CPU offload. Confirm Accelerate is installed "
-                "by running setup_gpu.bat. Do not move the pipeline to CUDA manually. "
-                f"Original offload message: {exc}"
-            ) from exc
+            raise
 
         self.pipe = pipe
         self.progress("Model and pencil adapter loaded. Ready to render.")
