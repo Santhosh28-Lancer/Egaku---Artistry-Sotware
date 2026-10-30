@@ -10,6 +10,7 @@ from PIL import Image
 from egaku.sketch_engine import (
     DEFAULT_MAX_SIDE,
     OOM_RETRY_SIZES,
+    _configure_low_vram,
     _load_image,
     _model_dimensions,
     _unique_retry_sides,
@@ -67,6 +68,45 @@ class EgakuEngineTests(unittest.TestCase):
             )
             with self.assertRaisesRegex(ValueError, "standard Stable Diffusion 1.5"):
                 _validate_model_path(folder)
+
+
+    def test_low_vram_uses_vae_component_methods_and_pipeline_offload(self):
+        class FakeVAE:
+            def __init__(self):
+                self.calls = []
+
+            def enable_slicing(self):
+                self.calls.append("vae_slicing")
+
+            def enable_tiling(self):
+                self.calls.append("vae_tiling")
+
+        class FakePipeline:
+            def __init__(self):
+                self.vae = FakeVAE()
+                self.calls = []
+
+            def enable_attention_slicing(self, mode):
+                self.calls.append(("attention", mode))
+
+            def enable_sequential_cpu_offload(self):
+                self.calls.append("sequential_cpu_offload")
+
+        pipe = FakePipeline()
+        _configure_low_vram(pipe)
+
+        self.assertEqual(pipe.vae.calls, ["vae_slicing", "vae_tiling"])
+        self.assertIn(("attention", "max"), pipe.calls)
+        self.assertIn("sequential_cpu_offload", pipe.calls)
+        self.assertFalse(hasattr(pipe, "enable_vae_slicing"))
+
+    def test_low_vram_requires_sequential_offload(self):
+        class FakePipeline:
+            def __init__(self):
+                self.vae = object()
+
+        with self.assertRaisesRegex(RuntimeError, "sequential CPU offload"):
+            _configure_low_vram(FakePipeline())
 
 
 if __name__ == "__main__":
