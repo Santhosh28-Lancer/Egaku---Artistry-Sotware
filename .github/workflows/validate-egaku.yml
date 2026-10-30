@@ -36,6 +36,7 @@ jobs:
           required = [
               "Egaku/main.py",
               "Egaku/egaku/sketch_engine.py",
+              "Egaku/egaku/verify_runtime.py",
               "Egaku/requirements.txt",
               "Egaku/setup_gpu.bat",
               "Egaku/run.bat",
