@@ -5,6 +5,7 @@ Input images remain on the local computer.
 """
 from __future__ import annotations
 
+import gc
 import hashlib
 import json
 import os
@@ -98,6 +99,18 @@ def _load_image(path: str | Path, max_side: int = DEFAULT_MAX_SIDE) -> tuple[Ima
     return image, original_size
 
 
+def _unique_retry_sides(width: int, height: int) -> tuple[int, ...]:
+    """Skip retry profiles that would produce exactly the same input dimensions."""
+    sides: list[int] = []
+    seen_dimensions: set[tuple[int, int]] = set()
+    for max_side in OOM_RETRY_SIZES:
+        dimensions = _model_dimensions(width, height, max_side=max_side)
+        if dimensions not in seen_dimensions:
+            seen_dimensions.add(dimensions)
+            sides.append(max_side)
+    return tuple(sides)
+
+
 def _check_runtime() -> None:
     """Fail early with actionable messages before loading several GB of weights."""
     try:
@@ -112,11 +125,6 @@ def _check_runtime() -> None:
     if not is_peft_available():
         raise RuntimeError(
             "Diffusers cannot detect PEFT. Run setup_gpu.bat, then fully restart Egaku."
-        )
-    if not hasattr(accelerate, "dispatch_model") and not hasattr(accelerate, "cpu_offload"):
-        raise RuntimeError(
-            "Accelerate is installed but does not expose the required offload utilities. "
-            "Run setup_gpu.bat to repair the environment."
         )
     if not torch.cuda.is_available() or torch.version.cuda is None:
         raise RuntimeError(
@@ -242,15 +250,26 @@ class PencilRenderer:
             torch.cuda.empty_cache()
             raise RuntimeError("The selected Stable Diffusion model has no VAE component.")
 
-        if callable(getattr(vae, "enable_slicing", None)):
-            vae.enable_slicing()
-        if callable(getattr(vae, "enable_tiling", None)):
-            vae.enable_tiling()
+        # These are optional memory features. If a particular VAE implementation
+        # does not support one, continue with sequential CPU offload and OOM retries.
+        try:
+            if callable(getattr(vae, "enable_slicing", None)):
+                vae.enable_slicing()
+        except Exception as exc:
+            self.progress(f"VAE slicing unavailable; continuing with CPU offload ({exc})")
+        try:
+            if callable(getattr(vae, "enable_tiling", None)):
+                vae.enable_tiling()
+        except Exception as exc:
+            self.progress(f"VAE tiling unavailable; continuing with CPU offload ({exc})")
 
-        # Attention slicing is a useful additional memory reduction for 4 GB GPUs.
+        # Attention slicing is optional and varies by attention backend.
         attention_slicing = getattr(pipe, "enable_attention_slicing", None)
         if callable(attention_slicing):
-            attention_slicing("max")
+            try:
+                attention_slicing("max")
+            except Exception as exc:
+                self.progress(f"Attention slicing unavailable; continuing ({exc})")
 
         # Do not call pipe.to('cuda') before sequential offload. That defeats much
         # of the memory saving and can exhaust a 4 GB laptop GPU.
@@ -331,13 +350,16 @@ class PencilRenderer:
 
         output = Path(output_path)
         output.parent.mkdir(parents=True, exist_ok=True)
-        last_oom: Exception | None = None
+        with Image.open(image_path) as opened:
+            original_size = ImageOps.exif_transpose(opened).size
+        retry_sides = _unique_retry_sides(*original_size)
+        last_oom_message: str | None = None
 
-        for attempt, max_side in enumerate(OOM_RETRY_SIZES, start=1):
+        for attempt, max_side in enumerate(retry_sides, start=1):
             source, original_size = _load_image(image_path, max_side=max_side)
             self.progress(
                 f"Rendering pencil illustration at {source.width} × {source.height} "
-                f"(memory profile {attempt}/{len(OOM_RETRY_SIZES)})…"
+                f"(memory profile {attempt}/{len(retry_sides)})…"
             )
             try:
                 with torch.inference_mode():
@@ -351,9 +373,10 @@ class PencilRenderer:
                 return generated
 
             except torch.cuda.OutOfMemoryError as exc:
-                last_oom = exc
+                last_oom_message = str(exc)
+                gc.collect()
                 torch.cuda.empty_cache()
-                if attempt == len(OOM_RETRY_SIZES):
+                if attempt == len(retry_sides):
                     break
                 self.progress("GPU memory was tight. Retrying automatically at a smaller size…")
             except RuntimeError as exc:
@@ -368,5 +391,5 @@ class PencilRenderer:
         raise RuntimeError(
             "The 4 GB GPU ran out of memory even after Egaku retried at lower resolutions. "
             "Close other GPU-heavy applications and retry. The original photo was not changed. "
-            f"Last CUDA error: {last_oom}"
-        ) from last_oom
+            f"Last CUDA error: {last_oom_message}"
+        )
