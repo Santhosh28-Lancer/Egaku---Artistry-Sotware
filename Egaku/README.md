@@ -10,6 +10,8 @@ A Windows desktop application for creating monochrome pencil-style artwork from 
 - Local model inference. Egaku does not upload input photographs.
 - 4 GB GPU memory profile: 512 px first attempt, then automatic retries at 448 px and 384 px after a CUDA out-of-memory error.
 - Preserves the original photograph and writes output to a separate PNG file.
+- Conservative img2img redraw strength (default 0.28, maximum 0.42) to reduce face, pose, clothing and accessory changes.
+- Explicit same-subject prompt and restrained pencil adapter weighting.
 
 ## Supported environment
 
@@ -54,7 +56,7 @@ The included pencil LoRA is intended for a standard Stable Diffusion 1.5 base mo
 
 ## Low-VRAM behavior
 
-Egaku does not move the full pipeline onto the GPU. It enables VAE slicing/tiling on the VAE component, maximum attention slicing where supported, and Diffusers sequential CPU offload. On a 4 GB GPU, generation can be slow. If CUDA runs out of memory, Egaku retries at lower input resolutions before reporting failure. Output is upscaled back to the original input dimensions; this does not restore details that were absent from the lower-resolution generation.
+Egaku does not move the full pipeline onto the GPU. It enables VAE slicing/tiling on the VAE component, maximum attention slicing where supported, and Diffusers sequential CPU offload. On a 4 GB GPU, generation can be slow. If CUDA runs out of memory, Egaku retries at lower input resolutions before reporting failure. Identity preservation is not guaranteed by Stable Diffusion img2img; lower redraw strength improves source retention but can make the pencil conversion subtler. Output is upscaled back to the original input dimensions; this does not restore details that were absent from the lower-resolution generation.
 
 ## Diagnostics
 
