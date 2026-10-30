@@ -382,9 +382,10 @@ class PencilRenderer:
             except RuntimeError as exc:
                 if "out of memory" not in str(exc).lower():
                     raise
-                last_oom = exc
+                last_oom_message = str(exc)
+                gc.collect()
                 torch.cuda.empty_cache()
-                if attempt == len(OOM_RETRY_SIZES):
+                if attempt == len(retry_sides):
                     break
                 self.progress("GPU memory was tight. Retrying automatically at a smaller size…")
 
