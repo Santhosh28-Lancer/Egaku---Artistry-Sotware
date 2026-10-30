@@ -35,28 +35,28 @@ if errorlevel 1 (
 )
 
 echo.
-echo [1/5] Updating pip...
+echo [1/7] Updating pip...
 .venv\Scripts\python.exe -m pip install --upgrade pip
 if errorlevel 1 goto failed
 
 echo.
-echo [2/5] Installing CUDA-enabled PyTorch 2.13.0...
+echo [2/7] Installing CUDA-enabled PyTorch 2.13.0...
 echo This uses the official PyTorch CUDA 13.2 wheel index.
 .venv\Scripts\python.exe -m pip install "torch==2.13.0+cu132" --index-url https://download.pytorch.org/whl/cu132 --extra-index-url https://pypi.org/simple
 if errorlevel 1 goto failed
 
 echo.
-echo [3/5] Installing the pinned Egaku dependencies...
+echo [3/7] Installing the pinned Egaku dependencies...
 .venv\Scripts\python.exe -m pip install --upgrade -r requirements.txt
 if errorlevel 1 goto failed
 
 echo.
-echo [4/5] Checking Python package consistency...
+echo [4/7] Checking Python package consistency...
 .venv\Scripts\python.exe -m pip check
 if errorlevel 1 goto failed
 
 echo.
-echo [5/6] Checking all Python source files...
+echo [5/7] Checking all Python source files...
 .venv\Scripts\python.exe -m compileall -q main.py egaku
 if errorlevel 1 goto failed
 
