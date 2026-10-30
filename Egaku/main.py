@@ -144,10 +144,10 @@ class EgakuWindow(QMainWindow):
             lambda value: self.depth_label.setText(f"Graphite depth  {value}")
         )
 
-        self.detail_label = QLabel("Fine detail  68")
+        self.detail_label = QLabel("Fine detail  58")
         self.detail = QSlider(Qt.Horizontal)
         self.detail.setRange(0, 100)
-        self.detail.setValue(68)
+        self.detail.setValue(58)
         self.detail.valueChanged.connect(
             lambda value: self.detail_label.setText(f"Fine detail  {value}")
         )
@@ -275,7 +275,7 @@ class EgakuWindow(QMainWindow):
 
     def reset(self) -> None:
         self.depth.setValue(64)
-        self.detail.setValue(68)
+        self.detail.setValue(58)
 
     def export(self) -> None:
         if not self.output_path or not Path(self.output_path).is_file():
