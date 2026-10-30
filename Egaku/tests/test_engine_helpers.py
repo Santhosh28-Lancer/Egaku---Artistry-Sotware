@@ -117,5 +117,17 @@ class EgakuEngineTests(unittest.TestCase):
             _configure_low_vram(FakePipeline())
 
 
+    def test_setup_uses_standalone_gpu_diagnostic(self):
+        setup = (Path(__file__).resolve().parents[1] / "setup_gpu.bat").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("python.exe egaku\\verify_runtime.py", setup)
+        self.assertNotIn("VRAM: %.2f", setup)
+
+    def test_runtime_diagnostic_script_is_present(self):
+        script = Path(__file__).resolve().parents[1] / "egaku" / "verify_runtime.py"
+        self.assertTrue(script.is_file())
+
+
 if __name__ == "__main__":
     unittest.main()
