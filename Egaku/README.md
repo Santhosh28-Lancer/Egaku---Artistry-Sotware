@@ -16,7 +16,7 @@ A Windows desktop application for creating monochrome pencil-style artwork from 
 - Windows 10/11, 64-bit.
 - Python 3.12, 64-bit.
 - NVIDIA GPU with a current driver.
-- CUDA-enabled PyTorch 2.13.0 + CUDA 13.2 wheel.
+- CUDA-enabled PyTorch 2.13.0 + CUDA 13.2 wheel with matching torchvision 0.28.0.
 - A complete Stable Diffusion 1.5 model folder or .safetensors / .ckpt checkpoint.
 - Internet access for the one-time pencil adapter download.
 
@@ -31,7 +31,7 @@ The base model weights are not included. The 37.9 MB pencil adapter is downloade
 5. Select a standard Stable Diffusion 1.5 model.
 6. Import a photograph and render.
 
-The setup script installs the CUDA-enabled PyTorch wheel from the official PyTorch CUDA 13.2 wheel index, installs the pinned application dependencies, runs pip check, compiles all Python files, runs the unit tests, and executes an actual small CUDA matrix operation. It stops if any required check fails.
+The setup script installs the matching CUDA-enabled PyTorch 2.13.0 and torchvision 0.28.0 wheels from the official PyTorch CUDA 13.2 wheel index, installs the pinned application dependencies, runs pip check, compiles all Python files, runs the unit tests, and executes an actual small CUDA matrix operation. It stops if any required check fails.
 
 If an existing .venv was created with a Python version other than 64-bit Python 3.12, rename or delete that .venv folder and run setup_gpu.bat again. It does not delete an existing environment automatically.
 
