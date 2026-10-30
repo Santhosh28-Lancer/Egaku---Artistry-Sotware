@@ -5,3 +5,5 @@ diffusers
 transformers
 accelerate
 safetensors
+peft
+huggingface-hub
