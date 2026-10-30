@@ -183,12 +183,12 @@ class EgakuWindow(QMainWindow):
         )
         help_text.setWordWrap(True)
 
-        self.strength_label = QLabel("Artistic strength  58")
+        self.strength_label = QLabel("Redraw strength  28 (lower preserves photo)")
         self.strength = QSlider(Qt.Horizontal)
-        self.strength.setRange(35, 78)
-        self.strength.setValue(58)
+        self.strength.setRange(18, 42)
+        self.strength.setValue(28)
         self.strength.valueChanged.connect(
-            lambda value: self.strength_label.setText(f"Artistic strength  {value}")
+            lambda value: self.strength_label.setText(f"Redraw strength  {value} (lower preserves photo)")
         )
 
         self.detail_label = QLabel("Fine detail  70")
