@@ -42,7 +42,7 @@ if errorlevel 1 goto failed
 echo.
 echo [2/7] Installing CUDA-enabled PyTorch 2.13.0...
 echo This uses the official PyTorch CUDA 13.2 wheel index.
-.venv\Scripts\python.exe -m pip install "torch==2.13.0+cu132" --index-url https://download.pytorch.org/whl/cu132 --extra-index-url https://pypi.org/simple
+.venv\Scripts\python.exe -m pip install "torch==2.13.0+cu132" "torchvision==0.28.0+cu132" --index-url https://download.pytorch.org/whl/cu132 --extra-index-url https://pypi.org/simple
 if errorlevel 1 goto failed
 
 echo.
@@ -67,7 +67,7 @@ if errorlevel 1 goto failed
 
 echo.
 echo [7/7] Running PyTorch, CUDA, PEFT and GPU compute tests...
-.venv\Scripts\python.exe -c "import torch,diffusers,transformers,accelerate,peft,safetensors,huggingface_hub; from diffusers.utils.import_utils import is_peft_available; assert torch.cuda.is_available(), 'CUDA is not available to PyTorch'; assert torch.version.cuda is not None, 'CPU-only PyTorch detected'; assert is_peft_available(), 'Diffusers cannot detect PEFT'; x=torch.randn((256,256),device='cuda'); y=x@x; torch.cuda.synchronize(); p=torch.cuda.get_device_properties(0); print('PyTorch:',torch.__version__); print('CUDA runtime:',torch.version.cuda); print('Diffusers:',diffusers.__version__); print('Transformers:',transformers.__version__); print('PEFT:',peft.__version__); print('Accelerate:',accelerate.__version__); print('GPU:',p.name); print('VRAM: %.2f GB' % (p.total_memory/1024**3)); print('CUDA compute test: PASS')"
+.venv\Scripts\python.exe -c "import torch,torchvision,diffusers,transformers,accelerate,peft,safetensors,huggingface_hub; from diffusers.utils.import_utils import is_peft_available; assert torch.cuda.is_available(), 'CUDA is not available to PyTorch'; assert torch.version.cuda is not None, 'CPU-only PyTorch detected'; assert is_peft_available(), 'Diffusers cannot detect PEFT'; x=torch.randn((256,256),device='cuda'); y=x@x; torch.cuda.synchronize(); p=torch.cuda.get_device_properties(0); assert torchvision.__version__.split('+')[0] == '0.28.0', 'torchvision version does not match PyTorch 2.13'; print('PyTorch:',torch.__version__); print('torchvision:',torchvision.__version__); print('CUDA runtime:',torch.version.cuda); print('Diffusers:',diffusers.__version__); print('Transformers:',transformers.__version__); print('PEFT:',peft.__version__); print('Accelerate:',accelerate.__version__); print('GPU:',p.name); print('VRAM: %.2f GB' % (p.total_memory/1024**3)); print('CUDA compute test: PASS')"
 if errorlevel 1 (
   echo.
   echo ERROR: GPU runtime verification failed.
