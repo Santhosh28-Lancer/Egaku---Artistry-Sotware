@@ -1,31 +1,83 @@
 @echo off
 setlocal
 cd /d "%~dp0"
-title Egaku - Setup
+title Egaku - Full Dependency and CUDA Setup
+
+echo ==============================================
+echo   EGAKU - FULL GPU ENVIRONMENT REPAIR
+echo ==============================================
+echo.
+
 where py >nul 2>nul
 if errorlevel 1 (
-  echo Python launcher not found. Install Python 3.12 first.
-  pause
-  exit /b 1
-)
-if not exist ".venv\Scripts\python.exe" py -3.12 -m venv .venv
-if errorlevel 1 goto failed
-.venv\Scripts\python.exe -m pip install --upgrade pip
-if errorlevel 1 goto failed
-.venv\Scripts\python.exe -m pip install -r requirements.txt
-if errorlevel 1 goto failed
-.venv\Scripts\python.exe -c "import peft; from diffusers.utils.import_utils import is_peft_available; assert is_peft_available(); print('PEFT backend:', peft.__version__)"
-if errorlevel 1 (
-  echo PEFT backend verification failed. Re-run this setup or install peft manually.
+  echo ERROR: Python Launcher not found.
+  echo Install 64-bit Python 3.12 and try again.
   goto failed
 )
+
+py -3.12 -c "import sys,struct; assert sys.version_info[:2] == (3,12) and struct.calcsize('P') == 8"
+if errorlevel 1 (
+  echo ERROR: Egaku requires 64-bit Python 3.12.
+  goto failed
+)
+
+if not exist ".venv\Scripts\python.exe" (
+  echo Creating Python 3.12 virtual environment...
+  py -3.12 -m venv .venv
+  if errorlevel 1 goto failed
+)
+
+.venv\Scripts\python.exe -c "import sys,struct; assert sys.version_info[:2] == (3,12) and struct.calcsize('P') == 8"
+if errorlevel 1 (
+  echo ERROR: The existing .venv is not 64-bit Python 3.12.
+  echo Rename or delete the .venv folder, then run setup again.
+  goto failed
+)
+
 echo.
-echo Egaku dependencies are installed.
-echo Close any open Egaku window, then run run.bat.
+echo [1/5] Updating pip...
+.venv\Scripts\python.exe -m pip install --upgrade pip
+if errorlevel 1 goto failed
+
+echo.
+echo [2/5] Installing CUDA-enabled PyTorch 2.13.0...
+echo This uses the official PyTorch CUDA 13.2 wheel index.
+.venv\Scripts\python.exe -m pip install "torch==2.13.0+cu132" --index-url https://download.pytorch.org/whl/cu132 --extra-index-url https://pypi.org/simple
+if errorlevel 1 goto failed
+
+echo.
+echo [3/5] Installing the pinned Egaku dependencies...
+.venv\Scripts\python.exe -m pip install --upgrade -r requirements.txt
+if errorlevel 1 goto failed
+
+echo.
+echo [4/5] Checking Python package consistency...
+.venv\Scripts\python.exe -m pip check
+if errorlevel 1 goto failed
+
+echo.
+echo [5/5] Running PyTorch, CUDA, PEFT and GPU compute tests...
+.venv\Scripts\python.exe -c "import torch,diffusers,transformers,accelerate,peft,safetensors,huggingface_hub; from diffusers.utils.import_utils import is_peft_available; assert torch.cuda.is_available(), 'CUDA is not available to PyTorch'; assert torch.version.cuda is not None, 'CPU-only PyTorch detected'; assert is_peft_available(), 'Diffusers cannot detect PEFT'; x=torch.randn((256,256),device='cuda'); y=x@x; torch.cuda.synchronize(); p=torch.cuda.get_device_properties(0); print('PyTorch:',torch.__version__); print('CUDA runtime:',torch.version.cuda); print('Diffusers:',diffusers.__version__); print('Transformers:',transformers.__version__); print('PEFT:',peft.__version__); print('Accelerate:',accelerate.__version__); print('GPU:',p.name); print('VRAM: %.2f GB' % (p.total_memory/1024**3)); print('CUDA compute test: PASS')"
+if errorlevel 1 (
+  echo.
+  echo ERROR: GPU runtime verification failed.
+  echo Check your NVIDIA driver, then see the troubleshooting section in README.md.
+  goto failed
+)
+
+echo.
+echo ==============================================
+echo   EGAKU ENVIRONMENT READY
+echo ==============================================
+echo Close any old Egaku window, then launch run.bat.
 pause
 exit /b 0
+
 :failed
 echo.
-echo Setup failed. Check the error above.
+echo ==============================================
+echo   SETUP DID NOT COMPLETE
+echo ==============================================
+echo Do not try rendering until this setup finishes successfully.
 pause
 exit /b 1
