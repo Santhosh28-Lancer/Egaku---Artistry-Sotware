@@ -2,38 +2,25 @@
 setlocal
 cd /d "%~dp0"
 title Egaku - Image to Art Studio
-
 if not exist ".venv\Scripts\python.exe" (
-  echo Egaku environment not found. Run setup_gpu.bat first.
+  echo Egaku environment not found. Run setup.bat first.
   pause
   exit /b 1
 )
-
-echo Checking Egaku source...
-.venv\Scripts\python.exe -m py_compile main.py egaku\sketch_engine.py egaku\verify_runtime.py
+.venv\Scripts\python.exe -m py_compile main.py egaku\sketch_engine.py
 if errorlevel 1 (
-  echo.
-  echo Python source validation failed. Run setup_gpu.bat or update the project.
+  echo Python source validation failed. Run setup.bat.
   pause
   exit /b 1
 )
-
-echo.
-echo Checking Egaku GPU runtime...
-.venv\Scripts\python.exe egaku\verify_runtime.py
+.venv\Scripts\python.exe -c "import cv2,numpy,PIL,PySide6; print('OpenCV:',cv2.__version__); print('Local graphite engine ready.')"
 if errorlevel 1 (
-  echo.
-  echo Egaku GPU checks failed. Run setup_gpu.bat and check the NVIDIA driver.
+  echo Egaku dependencies are missing. Run setup.bat.
   pause
   exit /b 1
 )
-
-echo.
-echo Launching Egaku...
 .venv\Scripts\python.exe main.py
 if errorlevel 1 (
-  echo.
-  echo Egaku closed with an error.
-  echo Check %LOCALAPPDATA%\Egaku\logs\last-render-error.log if a render failed.
+  echo Egaku closed with an error. Check %%LOCALAPPDATA%%\Egaku\logs\last-render-error.log if available.
   pause
 )
