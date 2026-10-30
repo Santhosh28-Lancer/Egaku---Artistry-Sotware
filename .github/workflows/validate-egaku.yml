@@ -29,6 +29,9 @@ jobs:
       - name: Run Egaku helper tests
         working-directory: Egaku
         run: python -m unittest discover -s tests -v
+      - name: Validate runtime package imports without GPU hardware
+        working-directory: Egaku
+        run: python egaku/verify_runtime.py --packages-only
       - name: Verify required project files
         run: |
           python - <<'PY'
