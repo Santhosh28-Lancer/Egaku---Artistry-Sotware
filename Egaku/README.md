@@ -1,39 +1,41 @@
 # Egaku — Image to Art Studio
 
-A local, deterministic photograph-to-graphite application. The single Pencil workflow uses a structured OpenCV pipeline. It does not generate a new subject or redraw a person's identity.
+A deterministic, non-generative photograph-to-graphite application. The single Pencil workflow uses a structured OpenCV pipeline. It never invents another person or changes the input identity through a generative model.
 
-## Rendering pipeline
+## Graphite Flow pipeline
 
-1. **Edge-aware cleanup:** bilateral denoising and restrained unsharp masking sharpen the photograph without deliberately amplifying flat-region noise.
-2. **Structural edges:** adaptive Canny and Sobel gradients find contours, then morphological closing and connected-component filtering remove small specks.
-3. **Graphite tones:** a softened luminance field creates gradual shadow and highlight transitions on a paper-like white base.
-4. **Graphite flow:** a structure tensor estimates local image direction; directional hatching follows contours and a second cross-hatch is limited to deeper shadows.
-5. **Pencil line finish:** OpenCV's `pencilSketch` is blended with the tonal and flow layers to add fine pencil marks without relying on it as the entire renderer.
+1. **Edge-aware preparation:** bilateral smoothing reduces compression noise, then an unsharp mask strengthens genuine fine detail without simply amplifying every pixel.
+2. **Multi-scale structure detection:** adaptive Canny at two scales is combined with Sobel gradient strength. Very small isolated edge components are filtered to reduce fabric/sky speckle.
+3. **Graphite tonal mapping:** a controlled luminance curve retains smooth face shadows, deep hair and clothing tones, and paper-white highlights.
+4. **Structure-tensor graphite flow:** local image direction is estimated with a smoothed structure tensor. Short curved strokes follow coherent local contours; cross-hatching is restricted to deeper shadows.
+5. **Pencil finish:** OpenCV's `pencilSketch()` contributes a small amount of fine graphite texture. It is not used as the entire effect.
 
-All operations are local. No Stable Diffusion model, LoRA, PEFT, CUDA, GPU, account, or network connection is required. Original framing and dimensions are retained. The original file is never overwritten.
+The original subject, expression, pose, clothing, accessories and framing come directly from the photograph. No AI model, LoRA, PEFT, CUDA, NVIDIA driver, internet access or model weights are required. Original input files are never overwritten.
 
 ## Requirements
 
 - Windows 10/11, 64-bit
 - Python 3.12, 64-bit
-- OpenCV, NumPy, Pillow and PySide6 (installed by setup)
-- CPU processing; an NVIDIA GPU is not required
+- OpenCV-contrib, NumPy, Pillow and PySide6
+- CPU processing; GPU is not required
 
-## Install or repair
+## Install
 
-1. Extract the repository ZIP.
+1. Extract the repository ZIP or clone this repository.
 2. Open the `Egaku` folder.
 3. Run `setup.bat`.
 4. Run `run.bat`.
 
-`setup_gpu.bat` remains as a compatibility wrapper for older instructions and calls `setup.bat`. It no longer installs PyTorch or CUDA.
+`setup_gpu.bat` remains as a compatibility wrapper for older instructions and simply calls `setup.bat`. It does not install PyTorch or CUDA.
 
 ## Controls
 
-- **Graphite depth:** controls tonal darkness and depth in the shaded areas.
-- **Fine detail:** controls sharpening, edge sensitivity and graphite line density.
+- **Graphite depth:** adjusts tonal darkness and shadow depth.
+- **Fine detail:** adjusts edge sensitivity, sharpening, and graphite stroke density.
 
-The first render is non-generative and normally completes much faster than a diffusion model. Very large images are processed with a maximum working side of 1800 pixels, then restored to the original dimensions. The restored image has the original pixel size, but processing at a reduced working size cannot recreate detail absent from that working copy.
+The default fine-detail value is intentionally moderate to avoid turning smooth skin or backgrounds into noisy scratches. The renderer is deterministic: the same photo and settings produce the same output.
+
+Images are processed on a working copy with a maximum side of 1600 pixels for performance. The result is restored to the original pixel dimensions before saving. Upscaling preserves output dimensions but cannot recreate source detail that was not present in the working copy.
 
 ## Tests
 
@@ -44,4 +46,4 @@ Run from this directory:
 .\.venv\Scripts\python.exe -m unittest discover -s tests -v
 ```
 
-The test suite checks edge detection, image dimensions, monochrome output, deterministic rendering, input preservation and PNG export. It does not promise that every photograph will look identical to a hand-drawn artist's work; stroke character depends on the source image's focus, lighting, contrast and detail.
+The tests cover multi-scale edges, image sizing, grayscale output, deterministic rendering, original-file preservation and PNG export dimensions. Classical computer vision cannot guarantee an identical artist-drawn result for every photograph; the final stroke character depends on the source image's focus, lighting, contrast and background complexity.
