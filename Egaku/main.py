@@ -89,6 +89,7 @@ class EgakuWindow(QMainWindow):
         self.resize(1440, 900)
 
         self.settings = QSettings("Egaku", "ImageToArtStudio")
+        self.legacy_settings = QSettings("Egaku", "LocalAIPencil")
         self.source_path: str | None = None
         self.output_path: str | None = None
         self.preview_path: str | None = None
@@ -299,6 +300,10 @@ class EgakuWindow(QMainWindow):
 
     def _restore_model_setting(self) -> None:
         saved = str(self.settings.value("model_path", ""))
+        if not saved:
+            saved = str(self.legacy_settings.value("model_path", ""))
+            if saved and Path(saved).exists():
+                self.settings.setValue("model_path", saved)
         if saved and Path(saved).exists():
             self.model_value.setText(saved)
 
